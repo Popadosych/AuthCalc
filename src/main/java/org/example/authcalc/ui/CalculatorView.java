@@ -3,53 +3,66 @@ package org.example.authcalc.ui;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
+import org.example.authcalc.service.AuthService;
 
 public class CalculatorView {
+    private final Stage stage;
+    private final AuthService authService;
 
-    public Scene createScene() {
-        TextField a = new TextField();
-        TextField b = new TextField();
+    public CalculatorView(Stage stage, AuthService authService) {
+        this.stage = stage;
+        this.authService = authService;
+    }
+
+    public void show() {
+        // Получаем имя текущего пользователя
+        String username = authService.getCurrentUser().getUsername();
+        Label userLabel = new Label("Пользователь: " + username);
+
+        Label label = new Label("Калькулятор");
+        TextField input1 = new TextField();
+        TextField input2 = new TextField();
         ComboBox<String> op = new ComboBox<>();
         op.getItems().addAll("+", "-", "*", "/");
-        op.getSelectionModel().selectFirst();
-        Button calc = new Button("Вычислить");
+        op.getSelectionModel().selectFirst(); // выбираем по умолчанию "+"
         Label result = new Label();
 
-        calc.setOnAction(e -> {
+        Button calcButton = new Button("Вычислить");
+        Button logoutButton = new Button("Выйти");
+
+        calcButton.setOnAction(e -> {
             try {
-                double x = Double.parseDouble(a.getText());
-                double y = Double.parseDouble(b.getText());
-                String o = op.getValue();
+                double a = Double.parseDouble(input1.getText());
+                double b = Double.parseDouble(input2.getText());
+                String operation = op.getValue();
                 double res;
-                switch (o) {
-                    case "+": res = x + y; break;
-                    case "-": res = x - y; break;
-                    case "*": res = x * y; break;
-                    case "/": res = x / y; break;
+
+                switch (operation) {
+                    case "+": res = a + b; break;
+                    case "-": res = a - b; break;
+                    case "*": res = a * b; break;
+                    case "/": res = a / b; break;
                     default: res = 0; break;
                 }
-                result.setText(String.valueOf(res));
-            } catch (Exception ex) {
-                result.setText("Ошибка ввода");
+
+                result.setText("Результат: " + res);
+            } catch (NumberFormatException ex) {
+                result.setText("Ошибка: введите числа");
             }
         });
 
-        GridPane grid = new GridPane();
-        grid.setHgap(8);
-        grid.setVgap(8);
-        grid.add(new Label("A:"), 0, 0);
-        grid.add(a, 1, 0);
-        grid.add(new Label("B:"), 0, 1);
-        grid.add(b, 1, 1);
-        grid.add(new Label("Операция:"), 0, 2);
-        grid.add(op, 1, 2);
-        grid.add(calc, 1, 3);
-        grid.add(result, 1, 4);
+        logoutButton.setOnAction(e -> {
+            authService.logout();
+            LoginView loginView = new LoginView(authService, stage);
+            stage.setScene(loginView.createScene());
+        });
 
-        VBox root = new VBox(10, grid);
-        root.setPadding(new Insets(10));
-        return new Scene(root, 360, 260);
+        VBox vbox = new VBox(10, userLabel, label, input1, input2, op, calcButton, result, logoutButton);
+        vbox.setPadding(new Insets(20));
+
+        Scene scene = new Scene(vbox, 350, 320);
+        stage.setScene(scene);
     }
 }

@@ -1,11 +1,11 @@
 package org.example.authcalc;
 
+import javafx.application.Application;
+import javafx.stage.Stage;
 import org.example.authcalc.dao.UserDao;
 import org.example.authcalc.db.Database;
 import org.example.authcalc.service.AuthService;
 import org.example.authcalc.ui.LoginView;
-import javafx.application.Application;
-import javafx.stage.Stage;
 
 public class MainApp extends Application {
 
@@ -13,18 +13,17 @@ public class MainApp extends Application {
     public void start(Stage primaryStage) {
         Database.init();
 
-        String pepper = System.getenv("APP_PEPPER"); // optional
+        String pepper = System.getenv("APP_PEPPER");
         AuthService authService = new AuthService(new UserDao(), pepper);
 
-        // создаём тестового пользователя если нет
         if (!new UserDao().findByUsername("user").isPresent()) {
             authService.register("user", "1234".toCharArray(), "USER");
             System.out.println("Создан тестовый пользователь user/1234");
         }
 
-        LoginView login = new LoginView(authService);
+        LoginView login = new LoginView(authService, primaryStage);
         primaryStage.setTitle("Вход");
-        primaryStage.setScene(login.createScene(primaryStage));
+        primaryStage.setScene(login.createScene());
         primaryStage.show();
     }
 

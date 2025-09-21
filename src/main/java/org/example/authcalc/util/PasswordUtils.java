@@ -8,14 +8,13 @@ import java.util.Base64;
 
 public class PasswordUtils {
     private static final String ALGO = "PBKDF2WithHmacSHA256";
-    private static final int SALT_LEN = 16; // bytes
+    private static final int SALT_LEN = 16;
     private static final int ITERATIONS = 100_000;
-    private static final int KEY_LENGTH = 256; // bits
+    private static final int KEY_LENGTH = 256;
 
     public static String generateSaltBase64() {
         byte[] salt = new byte[SALT_LEN];
-        SecureRandom sr = new SecureRandom();
-        sr.nextBytes(salt);
+        new SecureRandom().nextBytes(salt);
         return Base64.getEncoder().encodeToString(salt);
     }
 

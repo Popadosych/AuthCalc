@@ -1,46 +1,52 @@
 package org.example.authcalc.ui;
 
-import org.example.authcalc.service.AuthService;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import org.example.authcalc.service.AuthService;
 
 public class LoginView {
     private final AuthService authService;
+    private final Stage stage;
 
-    public LoginView(AuthService authService) {
+    public LoginView(AuthService authService, Stage stage) {
         this.authService = authService;
+        this.stage = stage;
     }
 
-    public Scene createScene(Stage primaryStage) {
-        Label userLabel = new Label("Логин:");
-        TextField userField = new TextField();
+    public Scene createScene() {
+        Label usernameLabel = new Label("Логин:");
+        TextField usernameField = new TextField();
 
-        Label passLabel = new Label("Пароль:");
-        PasswordField passField = new PasswordField();
+        Label passwordLabel = new Label("Пароль:");
+        PasswordField passwordField = new PasswordField();
 
-        Button loginBtn = new Button("Войти");
-        Label info = new Label();
+        Button loginButton = new Button("Войти");
+        Button registerButton = new Button("Регистрация");
 
-        loginBtn.setOnAction(e -> {
-            String user = userField.getText();
-            char[] pass = passField.getText().toCharArray();
-            boolean ok = authService.login(user, pass);
-            java.util.Arrays.fill(pass, '\0'); // очистить временный массив
-            if (ok) {
-                CalculatorView calc = new CalculatorView();
-                primaryStage.setScene(calc.createScene());
-                primaryStage.setTitle("Калькулятор");
-            } else {
-                // можно уточнить причину — но здесь простой текст
-                info.setText("Неверные данные или аккаунт заблокирован.");
+        Label statusLabel = new Label();
+
+        loginButton.setOnAction(e -> {
+            try {
+                authService.login(usernameField.getText(), passwordField.getText().toCharArray());
+                statusLabel.setText("Успешный вход!");
+                new CalculatorView(stage, authService).show();
+            } catch (Exception ex) {
+                statusLabel.setText("Ошибка: " + ex.getMessage());
             }
         });
 
-        VBox box = new VBox(8, userLabel, userField, passLabel, passField, loginBtn, info);
-        box.setPadding(new Insets(15));
-        return new Scene(box, 360, 260);
+        registerButton.setOnAction(e -> {
+            RegisterView registerView = new RegisterView(authService, stage);
+            stage.setScene(registerView.createScene());
+        });
+
+        VBox vbox = new VBox(10, usernameLabel, usernameField, passwordLabel, passwordField,
+                loginButton, registerButton, statusLabel);
+        vbox.setPadding(new Insets(20));
+
+        return new Scene(vbox, 300, 250);
     }
 }

@@ -12,6 +12,7 @@ public class AuthService {
     private final int MAX_ATTEMPTS = 3;
     private final long LOCK_DURATION_MS = 15 * 60 * 1000L; // 15 минут
     private final String pepper;
+    private User currentUser; // 🔹 добавлено
 
     public AuthService(UserDao userDao, String pepper) {
         this.userDao = userDao;
@@ -37,14 +38,14 @@ public class AuthService {
         return true;
     }
 
-    public boolean login(String username, char[] password) {
+    public LoginResult login(String username, char[] password) {
         Optional<User> opt = userDao.findByUsername(username);
-        if (!opt.isPresent()) return false;
+        if (!opt.isPresent()) return LoginResult.INVALID;
 
         User u = opt.get();
         long now = Instant.now().toEpochMilli();
         if (u.getLockedUntil() > now) {
-            return false;
+            return new LoginResult(LoginStatus.LOCKED, u.getLockedUntil());
         }
 
         byte[] salt = java.util.Base64.getDecoder().decode(u.getSalt());
@@ -54,7 +55,8 @@ public class AuthService {
 
         if (ok) {
             userDao.resetFailedAttempts(u);
-            return true;
+            currentUser = u; // 🔹 сохраняем залогиненного пользователя
+            return LoginResult.SUCCESS;
         } else {
             int attempts = u.getFailedAttempts() + 1;
             u.setFailedAttempts(attempts);
@@ -62,8 +64,18 @@ public class AuthService {
                 u.setLockedUntil(now + LOCK_DURATION_MS);
             }
             userDao.updateFailedAttemptsAndLock(u);
-            return false;
+            return LoginResult.INVALID;
         }
+    }
+
+    /** 🔹 Разлогинивание */
+    public void logout() {
+        currentUser = null;
+    }
+
+    /** 🔹 Получить текущего пользователя */
+    public User getCurrentUser() {
+        return currentUser;
     }
 
     private char[] combinePasswordPepper(char[] password, String pepper) {
@@ -75,5 +87,29 @@ public class AuthService {
         System.arraycopy(password, 0, out, 0, password.length);
         System.arraycopy(pepperChars, 0, out, password.length, pepperChars.length);
         return out;
+    }
+
+    public static class LoginResult {
+        private final LoginStatus status;
+        private final Long lockedUntil;
+
+        public LoginResult(LoginStatus status) {
+            this(status, null);
+        }
+
+        public LoginResult(LoginStatus status, Long lockedUntil) {
+            this.status = status;
+            this.lockedUntil = lockedUntil;
+        }
+
+        public static final LoginResult SUCCESS = new LoginResult(LoginStatus.SUCCESS);
+        public static final LoginResult INVALID = new LoginResult(LoginStatus.INVALID);
+
+        public LoginStatus getStatus() { return status; }
+        public Long getLockedUntil() { return lockedUntil; }
+    }
+
+    public enum LoginStatus {
+        SUCCESS, INVALID, LOCKED
     }
 }
