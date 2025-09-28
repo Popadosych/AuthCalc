@@ -18,17 +18,32 @@ public class Database {
     }
 
     public static void init() {
-        String sql = "CREATE TABLE IF NOT EXISTS users (" +
+        String createTableSql = "CREATE TABLE IF NOT EXISTS users (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "username TEXT UNIQUE NOT NULL," +
                 "password_hash TEXT NOT NULL," +
                 "salt TEXT NOT NULL," +
                 "role TEXT DEFAULT 'USER'," +
-                "failed_attempts INTEGER DEFAULT 0," +
-                "locked_until INTEGER DEFAULT 0" +
+                "global_lock_until INTEGER DEFAULT 0" +
                 ");";
+
+        String addColumnSql = "ALTER TABLE users ADD COLUMN global_lock_until INTEGER DEFAULT 0;";
+
         try (Connection c = getConnection(); Statement st = c.createStatement()) {
-            st.execute(sql);
+            st.execute(createTableSql);
+
+            // Проверяем, существует ли столбец 'global_lock_until'
+            DatabaseMetaData metaData = c.getMetaData();
+            ResultSet columns = metaData.getColumns(null, null, "users", "global_lock_until");
+            if (!columns.next()) {
+                // Если столбец не найден, добавляем его
+                st.execute(addColumnSql);
+                System.out.println("Столбец 'global_lock_until' добавлен в таблицу 'users'.");
+            }
+
+            // ⚠️ ВАЖНО: Удалите старую базу данных, если она уже содержит
+            // failed_attempts и locked_until, иначе возникнет ошибка.
+            // Второй вариант - удалить эти столбцы вручную, но это сложнее.
         } catch (SQLException ex) {
             ex.printStackTrace();
         }

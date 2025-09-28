@@ -9,10 +9,13 @@ import java.util.Optional;
 
 public class AuthService {
     private final UserDao userDao;
-    private final int MAX_ATTEMPTS = 3;
-    private final long LOCK_DURATION_MS = 15 * 60 * 1000L; // 15 минут
     private final String pepper;
-    private User currentUser; // 🔹 добавлено
+    private User currentUser;
+
+    // Глобальная блокировка
+    private final int MAX_GLOBAL_ATTEMPTS = 5;
+    private final long GLOBAL_LOCK_DURATION_MS = 60 * 1000L;
+    private int globalFailedAttempts = 0;
 
     public AuthService(UserDao userDao, String pepper) {
         this.userDao = userDao;
@@ -32,21 +35,22 @@ public class AuthService {
         u.setSalt(saltBase64);
         u.setPasswordHash(hash);
         u.setRole(role == null ? "USER" : role);
-        u.setFailedAttempts(0);
-        u.setLockedUntil(0);
         userDao.save(u);
         return true;
     }
 
     public LoginResult login(String username, char[] password) {
+        if (isGloballyLocked()) {
+            return new LoginResult(LoginStatus.LOCKED, getGlobalLockUntil());
+        }
+
         Optional<User> opt = userDao.findByUsername(username);
-        if (!opt.isPresent()) return LoginResult.INVALID;
+        if (!opt.isPresent()) {
+            handleFailedLogin();
+            return LoginResult.INVALID;
+        }
 
         User u = opt.get();
-        long now = Instant.now().toEpochMilli();
-        if (u.getLockedUntil() > now) {
-            return new LoginResult(LoginStatus.LOCKED, u.getLockedUntil());
-        }
 
         byte[] salt = java.util.Base64.getDecoder().decode(u.getSalt());
         char[] pwdPlusPepper = combinePasswordPepper(password, pepper);
@@ -54,26 +58,36 @@ public class AuthService {
         java.util.Arrays.fill(pwdPlusPepper, '\0');
 
         if (ok) {
-            userDao.resetFailedAttempts(u);
-            currentUser = u; // 🔹 сохраняем залогиненного пользователя
+            currentUser = u;
+            globalFailedAttempts = 0;
             return LoginResult.SUCCESS;
         } else {
-            int attempts = u.getFailedAttempts() + 1;
-            u.setFailedAttempts(attempts);
-            if (attempts >= MAX_ATTEMPTS) {
-                u.setLockedUntil(now + LOCK_DURATION_MS);
-            }
-            userDao.updateFailedAttemptsAndLock(u);
+            handleFailedLogin();
             return LoginResult.INVALID;
         }
     }
 
-    /** 🔹 Разлогинивание */
+    private void handleFailedLogin() {
+        globalFailedAttempts++;
+        if (globalFailedAttempts >= MAX_GLOBAL_ATTEMPTS) {
+            long lockUntil = Instant.now().toEpochMilli() + GLOBAL_LOCK_DURATION_MS;
+            userDao.updateGlobalLock(lockUntil);
+            globalFailedAttempts = 0;
+        }
+    }
+
+    public long getGlobalLockUntil() {
+        return userDao.getGlobalLockUntil();
+    }
+
+    public boolean isGloballyLocked() {
+        return getGlobalLockUntil() > Instant.now().toEpochMilli();
+    }
+
     public void logout() {
         currentUser = null;
     }
 
-    /** 🔹 Получить текущего пользователя */
     public User getCurrentUser() {
         return currentUser;
     }

@@ -1,15 +1,28 @@
 package org.example.authcalc.ui;
 
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import org.example.authcalc.service.AuthService;
+import org.example.authcalc.service.AuthService.LoginResult;
+import org.example.authcalc.service.AuthService.LoginStatus;
+
+import java.time.Instant;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class LoginView {
     private final AuthService authService;
     private final Stage stage;
+    private TextField usernameField;
+    private PasswordField passwordField;
+    private Button loginButton;
+    private Label statusLabel;
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     public LoginView(AuthService authService, Stage stage) {
         this.authService = authService;
@@ -18,23 +31,27 @@ public class LoginView {
 
     public Scene createScene() {
         Label usernameLabel = new Label("Логин:");
-        TextField usernameField = new TextField();
+        usernameField = new TextField();
 
         Label passwordLabel = new Label("Пароль:");
-        PasswordField passwordField = new PasswordField();
+        passwordField = new PasswordField();
 
-        Button loginButton = new Button("Войти");
+        loginButton = new Button("Войти");
         Button registerButton = new Button("Регистрация");
 
-        Label statusLabel = new Label();
+        statusLabel = new Label();
 
         loginButton.setOnAction(e -> {
-            try {
-                authService.login(usernameField.getText(), passwordField.getText().toCharArray());
+            LoginResult result = authService.login(usernameField.getText(), passwordField.getText().toCharArray());
+            if (result.getStatus() == LoginStatus.SUCCESS) {
                 statusLabel.setText("Успешный вход!");
                 new CalculatorView(stage, authService).show();
-            } catch (Exception ex) {
-                statusLabel.setText("Ошибка: " + ex.getMessage());
+            } else if (result.getStatus() == LoginStatus.LOCKED) {
+                long remainingSeconds = (result.getLockedUntil() - Instant.now().toEpochMilli()) / 1000;
+                statusLabel.setText(String.format("Аккаунт заблокирован на %d секунд.", remainingSeconds));
+                updateLockStatus();
+            } else {
+                statusLabel.setText("Неверный логин или пароль!");
             }
         });
 
@@ -47,6 +64,35 @@ public class LoginView {
                 loginButton, registerButton, statusLabel);
         vbox.setPadding(new Insets(20));
 
+        updateLockStatus();
+
         return new Scene(vbox, 300, 250);
+    }
+
+    private void updateLockStatus() {
+        long lockedUntil = authService.getGlobalLockUntil();
+        long now = Instant.now().toEpochMilli();
+        boolean isLocked = lockedUntil > now;
+
+        usernameField.setDisable(isLocked);
+        passwordField.setDisable(isLocked);
+        loginButton.setDisable(isLocked);
+
+        if (isLocked) {
+            long remainingSeconds = (lockedUntil - now) / 1000;
+            statusLabel.setText(String.format("Приложение заблокировано на %d секунд.", remainingSeconds));
+
+            scheduler.schedule(() -> {
+                Platform.runLater(() -> {
+                    updateLockStatus();
+                    if (!authService.isGloballyLocked()) {
+                        statusLabel.setText("Приложение разблокировано. Попробуйте снова.");
+                    }
+                });
+            }, remainingSeconds + 1, TimeUnit.SECONDS);
+
+        } else {
+            statusLabel.setText("");
+        }
     }
 }

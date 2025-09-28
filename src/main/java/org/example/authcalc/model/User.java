@@ -6,10 +6,7 @@ public class User {
     private String passwordHash;
     private String salt;
     private String role;
-    private int failedAttempts;
-    private long lockedUntil;
 
-    public long getId() { return id; }
     public void setId(long id) { this.id = id; }
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
@@ -19,8 +16,4 @@ public class User {
     public void setSalt(String salt) { this.salt = salt; }
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
-    public int getFailedAttempts() { return failedAttempts; }
-    public void setFailedAttempts(int failedAttempts) { this.failedAttempts = failedAttempts; }
-    public long getLockedUntil() { return lockedUntil; }
-    public void setLockedUntil(long lockedUntil) { this.lockedUntil = lockedUntil; }
 }

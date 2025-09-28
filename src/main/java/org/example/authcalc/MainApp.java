@@ -16,9 +16,15 @@ public class MainApp extends Application {
         String pepper = System.getenv("APP_PEPPER");
         AuthService authService = new AuthService(new UserDao(), pepper);
 
+
         if (!new UserDao().findByUsername("user").isPresent()) {
             authService.register("user", "1234".toCharArray(), "USER");
             System.out.println("Создан тестовый пользователь user/1234");
+        }
+
+        if (!new UserDao().findByUsername("admin").isPresent()) {
+            authService.register("admin", "admin".toCharArray(), "ADMIN");
+            System.out.println("Создан тестовый администратор admin/admin");
         }
 
         LoginView login = new LoginView(authService, primaryStage);
